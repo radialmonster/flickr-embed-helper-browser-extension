@@ -43,8 +43,8 @@ A browser extension that makes it easy to generate HTML embed codes for Flickr p
 
 ### For Developers
 ```bash
-git clone https://github.com/radialmonster/flicker-embed-helper-browser-extension.git
-cd flicker-embed-helper-browser-extension
+git clone https://github.com/radialmonster/flickr-embed-helper-browser-extension.git
+cd flickr-embed-helper-browser-extension
 ```
 
 ## Quick Start
@@ -71,7 +71,7 @@ cd flicker-embed-helper-browser-extension
 ## File Structure
 
 ```
-flicker-embed-helper-browser-extension/
+flickr-embed-helper-browser-extension/
 ├── manifest.json           # Extension configuration
 ├── background.js           # Service worker for embed generation
 ├── content.js             # Content script for Flickr page interaction

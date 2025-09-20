@@ -3,7 +3,7 @@
     "allow": [
       "Bash(mkdir:*)",
       "Bash(node:*)",
-      "Read(//c/Users/Owner/Documents/projects/flicker-embed-helper/**)",
+      "Read(//c/Users/Owner/Documents/projects/flickr-embed-helper/**)",
       "WebFetch(domain:www.flickr.com)"
     ],
     "deny": [],
