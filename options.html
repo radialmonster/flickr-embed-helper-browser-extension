@@ -37,7 +37,7 @@
         <div class="section">
             <div class="section-header">
                 <h2>Collections</h2>
-                <button id="newCollectionBtn" class="btn btn-primary">
+                <button id="newCollectionBtn" class="btn btn-primary" type="button">
                     <span class="btn-icon">+</span>
                     New Collection
                 </button>
@@ -52,9 +52,9 @@
                 </div>
                 
                 <div class="collection-actions">
-                    <button id="renameCollectionBtn" class="btn btn-secondary" disabled>Rename</button>
-                    <button id="deleteCollectionBtn" class="btn btn-danger" disabled>Delete</button>
-                    <button id="clearCollectionBtn" class="btn btn-warning" disabled>Clear All Photos</button>
+                    <button id="renameCollectionBtn" class="btn btn-secondary" type="button" disabled>Rename</button>
+                    <button id="deleteCollectionBtn" class="btn btn-danger" type="button" disabled>Delete</button>
+                    <button id="clearCollectionBtn" class="btn btn-warning" type="button" disabled>Clear All Photos</button>
                 </div>
             </div>
         </div>
@@ -64,9 +64,9 @@
             <div class="section-header">
                 <h2>Photos in Collection: <span id="activeCollectionName" class="collection-name">None Selected</span></h2>
                 <div class="photo-actions">
-                    <button id="selectAllBtn" class="btn btn-secondary" disabled>Select All</button>
-                    <button id="selectNoneBtn" class="btn btn-secondary" disabled>Select None</button>
-                    <button id="removeSelectedBtn" class="btn btn-danger" disabled>Remove Selected</button>
+                    <button id="selectAllBtn" class="btn btn-secondary" type="button" disabled>Select All</button>
+                    <button id="selectNoneBtn" class="btn btn-secondary" type="button" disabled>Select None</button>
+                    <button id="removeSelectedBtn" class="btn btn-danger" type="button" disabled>Remove Selected</button>
                 </div>
             </div>
 
@@ -151,11 +151,11 @@
 
                     <!-- Export Buttons (outside subsections) -->
                     <div class="export-buttons">
-                        <button id="generateEmbedBtn" class="btn btn-primary btn-large">
+                        <button id="generateEmbedBtn" class="btn btn-primary btn-large" type="button">
                             <span class="btn-icon">🔄</span>
                             Generate Embed Codes
                         </button>
-                        <button id="copyEmbedBtn" class="btn btn-success btn-large" disabled>
+                        <button id="copyEmbedBtn" class="btn btn-success btn-large" type="button" disabled>
                             <span class="btn-icon">📋</span>
                             Copy to Clipboard
                         </button>
@@ -212,7 +212,7 @@
                 <p>I hope you're enjoying the Flickr Embed Helper! If this extension has been useful to you and you'd like to say thank you, I'd greatly appreciate a virtual tip.</p>
                 <p>Your support helps me continue developing and improving this extension for the community.</p>
                 <div style="text-align: center; margin-top: 20px;">
-                    <a href="https://radialmonster.github.io/send-a-virtual-gift/" target="_blank" class="btn btn-primary">
+                    <a href="https://radialmonster.github.io/send-a-virtual-gift/" target="_blank" rel="noopener" class="btn btn-primary">
                         <span class="btn-icon">☕</span>
                         Send a Virtual Gift
                     </a>
@@ -233,12 +233,12 @@
                 <div class="setting-item">
                     <label for="flickrApiKey">Flickr API Key:</label>
                     <div class="input-group">
-                        <input type="password" id="flickrApiKey" placeholder="Enter your Flickr API key">
-                        <button id="toggleApiKey" class="btn btn-secondary btn-small" title="Show/Hide API Key">👁️</button>
+                        <input type="password" id="flickrApiKey" placeholder="Enter your Flickr API key" autocapitalize="off" autocomplete="off" spellcheck="false">
+                        <button id="toggleApiKey" class="btn btn-secondary btn-small" type="button" title="Show/Hide API Key">👁️</button>
                     </div>
                     <div class="setting-help">
                         <p>🔑 <strong>Get larger sizes (1600px, 2048px, Original):</strong></p>
-                        <p>1. Get a free API key at <a href="https://www.flickr.com/services/apps/create/apply" target="_blank">flickr.com/services/apps</a></p>
+                        <p>1. Get a free API key at <a href="https://www.flickr.com/services/apps/create/apply" target="_blank" rel="noopener">flickr.com/services/apps</a></p>
                         <p>2. Choose "Non-Commercial" if you're using this personally</p>
                         <p>3. Copy the Key from your app's page</p>
                         <p>4. Paste it above and click "Test Connection"</p>
@@ -248,7 +248,7 @@
 
                 <div class="setting-item">
                     <label for="testPhotoInput">Test Photo (for Full Integration):</label>
-                    <input type="text" id="testPhotoInput" placeholder="Enter Flickr URL, photo ID, or username/photoId">
+                    <input type="text" id="testPhotoInput" placeholder="Enter Flickr URL, photo ID, or username/photoId" autocapitalize="off" spellcheck="false">
                     <div class="setting-help">
                         <p>Examples:</p>
                         <p>• Full URL: https://www.flickr.com/photos/username/12345678</p>
@@ -259,10 +259,10 @@
 
                 <div class="setting-item">
                     <div class="api-test-controls">
-                        <button id="testApiBtn" class="btn btn-primary" disabled>Test API Connection</button>
-                        <button id="testFullIntegrationBtn" class="btn btn-secondary" disabled>🧪 Test Full Integration</button>
-                        <button id="saveApiBtn" class="btn btn-success" disabled>Save API Settings</button>
-                        <button id="clearApiBtn" class="btn btn-danger" disabled>Clear API Settings</button>
+                        <button id="testApiBtn" class="btn btn-primary" type="button" disabled>Test API Connection</button>
+                        <button id="testFullIntegrationBtn" class="btn btn-secondary" type="button" disabled>🧪 Test Full Integration</button>
+                        <button id="saveApiBtn" class="btn btn-success" type="button" disabled>Save API Settings</button>
+                        <button id="clearApiBtn" class="btn btn-danger" type="button" disabled>Clear API Settings</button>
                     </div>
                 </div>
 
@@ -293,7 +293,7 @@
             <div class="donate-content">
                 <p>This extension is open source! Check out the code, report issues, or contribute to the project:</p>
                 <div style="text-align: center; margin-top: 15px;">
-                    <a href="https://github.com/radialmonster/flickr-embed-helper-browser-extension" target="_blank" class="btn btn-secondary">
+                    <a href="https://github.com/radialmonster/flickr-embed-helper-browser-extension" target="_blank" rel="noopener" class="btn btn-secondary">
                         <span class="btn-icon">⭐</span>
                         View on GitHub
                     </a>
@@ -304,20 +304,20 @@
     </div>
 
     <!-- Modal for New/Rename Collection -->
-    <div id="collectionModal" class="modal">
+    <div id="collectionModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
         <div class="modal-backdrop"></div>
         <div class="modal-content">
             <div class="modal-header">
                 <h3 id="modalTitle">New Collection</h3>
-                <button id="modalCloseBtn" class="modal-close">&times;</button>
+                <button id="modalCloseBtn" class="modal-close" type="button">&times;</button>
             </div>
             <div class="modal-body">
                 <label for="collectionNameInput">Collection Name:</label>
                 <input type="text" id="collectionNameInput" class="modal-input" placeholder="Enter collection name">
             </div>
             <div class="modal-footer">
-                <button id="modalCancelBtn" class="btn btn-secondary">Cancel</button>
-                <button id="modalSaveBtn" class="btn btn-primary">Save</button>
+                <button id="modalCancelBtn" class="btn btn-secondary" type="button">Cancel</button>
+                <button id="modalSaveBtn" class="btn btn-primary" type="button">Save</button>
             </div>
         </div>
     </div>

@@ -684,7 +684,7 @@ body {
     padding: 24px;
     display: flex;
     flex-direction: column;
-    height: 500px;
+    min-height: 500px;
 }
 
 .embed-preview-panel h3 {
@@ -708,12 +708,13 @@ body {
     border-radius: 8px;
     background: var(--bg-primary);
     color: var(--text-primary);
-    font-family: 'Courier New', monospace;
+    font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
     font-size: 16px;
     line-height: 1.5;
     white-space: pre-wrap;
     word-wrap: break-word;
-    resize: none;
+    resize: vertical;
+    tab-size: 2;
 }
 
 .embed-code-textarea:focus {

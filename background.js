@@ -381,7 +381,8 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
       if (isGet) {
         await copyToClipboard(embedHtml, tab.id);
       } else if (isAdd) {
-        await addToCollection(embedHtml, tab.id);
+        const { activeCollection } = await chrome.storage.local.get('activeCollection');
+        await addToCollection(embedHtml, activeCollection || 'default', tab.id);
       }
     }
   } catch (err) {
@@ -394,12 +395,93 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
 
 async function getPhotoDataFromTab(tab) {
   try {
+    // Try to get photo data from content script first
     const response = await chrome.tabs.sendMessage(tab.id, { action: 'getPhotoData' });
     return response;
   } catch (err) {
     console.error('❌ Could not get photo data from content script:', err);
+
+    // If messaging fails, try to inject the content script and retry once
+    try {
+      console.log('🔄 Attempting to inject content script...');
+      await chrome.scripting.executeScript({
+        target: { tabId: tab.id },
+        files: ['content.js']
+      });
+
+      // Wait a moment for content script to initialize
+      await new Promise(resolve => setTimeout(resolve, 200));
+
+      // Retry messaging
+      const response = await chrome.tabs.sendMessage(tab.id, { action: 'getPhotoData' });
+      console.log('✅ Content script injected and working');
+      return response;
+    } catch (injectErr) {
+      console.error('❌ Content script injection also failed:', injectErr);
+    }
+
+    // Final fallback: try to extract photo data from the URL
+    console.log('🔄 Attempting URL-based photo data extraction as fallback...');
+    const photoData = extractPhotoDataFromUrl(tab.url);
+    if (photoData) {
+      console.log('✅ Successfully extracted photo data from URL:', photoData);
+      return photoData;
+    }
+
+    console.error('❌ All photo data extraction methods failed');
     return null;
   }
+}
+
+function extractPhotoDataFromUrl(url) {
+  if (!url) return null;
+
+  console.log('🔍 Extracting photo data from URL:', url);
+
+  // Flickr URL patterns to match
+  const urlPatterns = [
+    // Standard photo URL: https://www.flickr.com/photos/username/photoId/
+    /https:\/\/(?:www\.)?flickr\.com\/photos\/([^/]+)\/(\d+)\/?$/,
+    // Photo in album: https://www.flickr.com/photos/username/photoId/in/album-albumId/
+    /https:\/\/(?:www\.)?flickr\.com\/photos\/([^/]+)\/(\d+)\/in\/album-([^/]+)\/?/,
+    // Photo in photostream: https://www.flickr.com/photos/username/photoId/in/photostream/
+    /https:\/\/(?:www\.)?flickr\.com\/photos\/([^/]+)\/(\d+)\/in\/photostream\/?/,
+    // Photo in set: https://www.flickr.com/photos/username/photoId/in/set-setId/
+    /https:\/\/(?:www\.)?flickr\.com\/photos\/([^/]+)\/(\d+)\/in\/set-([^/]+)\/?/,
+    // Photo with additional path: https://www.flickr.com/photos/username/photoId/sizes/l/
+    /https:\/\/(?:www\.)?flickr\.com\/photos\/([^/]+)\/(\d+)\/sizes\//,
+    // Photo with title slug: https://www.flickr.com/photos/username/photoId/title-slug/
+    /https:\/\/(?:www\.)?flickr\.com\/photos\/([^/]+)\/(\d+)\/[^/]+\/?$/
+  ];
+
+  for (const pattern of urlPatterns) {
+    const match = url.match(pattern);
+    if (match) {
+      const username = match[1];
+      const photoId = match[2];
+      let albumId = null;
+
+      // Check if it's an album URL
+      if (pattern.source.includes('album-')) {
+        albumId = match[3];
+      } else if (pattern.source.includes('set-')) {
+        albumId = match[3];
+      }
+
+      const result = {
+        username,
+        photoId,
+        albumId,
+        title: null // URL extraction can't get title
+      };
+
+      console.log('✅ Extracted photo data from URL:', result);
+      return result;
+    }
+  }
+
+  console.warn('❌ Could not extract photo data from URL - pattern not matched');
+  return null;
 }
 
 async function generateEmbed(info, tab, sizeKey) {
@@ -730,30 +812,6 @@ async function addToDefaultCollection(photoData, tabId) {
   notify(tabId, `Added to default collection (${collections['default'].length} photos)`);
 }
 
-async function addToCollection(embedHtml, tabId) {
-  const data = await chrome.storage.local.get(['collections', 'activeCollection']);
-  const collections = data.collections || {};
-  const active = data.activeCollection || 'default';
-  collections[active] = collections[active] || [];
-  // Extract photo data from embed HTML before storing
-  const photoData = extractPhotoDataFromEmbed(embedHtml);
-  if (!photoData) {
-    notify(tabId, 'Failed to extract photo data');
-    return;
-  }
-
-  collections[active].push({
-    photoId: photoData.photoId,
-    username: photoData.username,
-    title: photoData.title,
-    albumId: photoData.albumId,
-    addedAt: new Date().toISOString()
-  });
-  await chrome.storage.local.set({ collections });
-  notify(tabId, `Added to collection \"${active}\"`);
-}
-
-
 async function addToCollection(embedHtml, collectionName, tabId) {
   const { collections = {} } = await chrome.storage.local.get('collections');
   
@@ -789,24 +847,75 @@ async function addToCollection(embedHtml, collectionName, tabId) {
 }
 
 function extractPhotoDataFromEmbed(embedHtml) {
-  // Extract photo data from existing embed HTML
-  // Pattern: https://www.flickr.com/photos/username/photoId/in/album-albumId or https://www.flickr.com/photos/username/photoId
-  const urlMatch = embedHtml.match(/href="https:\/\/www\.flickr\.com\/photos\/([^/]+)\/(\d+)(?:\/in\/album-([^"]+))?"/);
-  if (!urlMatch) return null;
+  console.log('🔍 Extracting photo data from embed HTML...');
 
-  // Extract title from embed HTML (from alt text or data-flickr-embed-title)
+  // Try multiple regex patterns to handle different HTML formats
+  const urlPatterns = [
+    // Primary pattern (double quotes) - our fallback format
+    /href="https:\/\/www\.flickr\.com\/photos\/([^/]+)\/(\d+)(?:\/in\/album-([^"]+))?"/,
+    // Single quotes variant
+    /href='https:\/\/www\.flickr\.com\/photos\/([^/]+)\/(\d+)(?:\/in\/album-([^']+))?'/,
+    // Data URL attributes (some embed formats use data-url)
+    /data-url="https:\/\/www\.flickr\.com\/photos\/([^/]+)\/(\d+)(?:\/in\/album-([^"]+))?"/,
+    /data-url='https:\/\/www\.flickr\.com\/photos\/([^/]+)\/(\d+)(?:\/in\/album-([^']+))?'/,
+    // Src attributes (in case the URL is in img src)
+    /src="[^"]*flickr[^"]*\/photos\/([^/]+)\/(\d+)(?:\/in\/album-([^"\/]+))?/,
+    // General Flickr URL pattern (more permissive)
+    /https:\/\/(?:www\.)?flickr\.com\/photos\/([^/\s"']+)\/(\d+)(?:\/in\/album-([^/\s"']+))?/
+  ];
+
+  let urlMatch = null;
+  let patternUsed = -1;
+
+  // Try each pattern until one matches
+  for (let i = 0; i < urlPatterns.length; i++) {
+    urlMatch = embedHtml.match(urlPatterns[i]);
+    if (urlMatch) {
+      patternUsed = i;
+      console.log(`✅ URL extracted using pattern ${i + 1}`);
+      break;
+    }
+  }
+
+  if (!urlMatch) {
+    console.warn('❌ Could not extract Flickr URL from embed HTML');
+    console.warn('📝 Embed HTML sample:', embedHtml.substring(0, 200) + '...');
+    return null;
+  }
+
+  // Extract title using multiple methods
   let title = '';
-  const altMatch = embedHtml.match(/alt="([^"]+)"/);
-  const titleMatch = embedHtml.match(/title="([^"]+)"/);
-  if (altMatch) title = altMatch[1];
-  else if (titleMatch) title = titleMatch[1];
+  const titlePatterns = [
+    // Double quotes
+    /alt="([^"]+)"/,
+    /title="([^"]+)"/,
+    // Single quotes
+    /alt='([^']+)'/,
+    /title='([^']+)'/,
+    // Data attributes
+    /data-title="([^"]+)"/,
+    /data-title='([^']+)'/,
+    // Flickr-specific attributes
+    /data-flickr-embed-title="([^"]+)"/
+  ];
 
-  return {
+  for (const pattern of titlePatterns) {
+    const match = embedHtml.match(pattern);
+    if (match) {
+      title = match[1];
+      break;
+    }
+  }
+
+  const result = {
     photoId: urlMatch[2],
     username: urlMatch[1],
     albumId: urlMatch[3] || null,
     title: title || `Photo ${urlMatch[2]}`
   };
+
+  console.log('✅ Extracted photo data:', result);
+  return result;
 }
 
 
