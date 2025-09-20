@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flickr Embed Helper - Collection Manager</title>
+    <link rel="stylesheet" href="options.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <h1>
+                <span class="icon">📸</span>
+                Flickr Embed Helper
+            </h1>
+            <p class="subtitle">Manage your photo collections and export embed codes</p>
+        </header>
+
+        <!-- Stats Overview -->
+        <div class="stats-section">
+            <div class="stat-card">
+                <div class="stat-number" id="totalCollections">0</div>
+                <div class="stat-label">Collections</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="totalPhotos">0</div>
+                <div class="stat-label">Total Photos</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="activeCollectionCount">0</div>
+                <div class="stat-label">Photos in Active Collection</div>
+            </div>
+        </div>
+
+        <!-- Collection Management -->
+        <div class="section">
+            <div class="section-header">
+                <h2>Collections</h2>
+                <button id="newCollectionBtn" class="btn btn-primary">
+                    <span class="btn-icon">+</span>
+                    New Collection
+                </button>
+            </div>
+            
+            <div class="collection-controls">
+                <div class="select-wrapper">
+                    <label for="collectionSelect">Active Collection:</label>
+                    <select id="collectionSelect" class="collection-select">
+                        <option value="">Select a collection...</option>
+                    </select>
+                </div>
+                
+                <div class="collection-actions">
+                    <button id="renameCollectionBtn" class="btn btn-secondary" disabled>Rename</button>
+                    <button id="deleteCollectionBtn" class="btn btn-danger" disabled>Delete</button>
+                    <button id="clearCollectionBtn" class="btn btn-warning" disabled>Clear All Photos</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Photo Management -->
+        <div class="section">
+            <div class="section-header">
+                <h2>Photos in Collection: <span id="activeCollectionName" class="collection-name">None Selected</span></h2>
+                <div class="photo-actions">
+                    <button id="selectAllBtn" class="btn btn-secondary" disabled>Select All</button>
+                    <button id="selectNoneBtn" class="btn btn-secondary" disabled>Select None</button>
+                    <button id="removeSelectedBtn" class="btn btn-danger" disabled>Remove Selected</button>
+                </div>
+            </div>
+
+            <div id="photosList" class="photos-list">
+                <div class="empty-state">
+                    <div class="empty-icon">📂</div>
+                    <h3>No Collection Selected</h3>
+                    <p>Select or create a collection to start managing your Flickr photos.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Export Section -->
+        <div class="section">
+            <div class="section-header">
+                <h2>Export & Preview</h2>
+            </div>
+
+            <div class="export-layout">
+                <!-- Export Options - Left Half -->
+                <div class="export-options-panel">
+                    <h3>Export Options</h3>
+
+                    <!-- Export Method Selection -->
+                    <div class="setting-item">
+                        <label>Export Method:</label>
+                        <label class="radio-label">
+                            <input type="radio" name="exportMethod" id="exportMethodEmbeds" value="embeds" checked>
+                            <span class="radio-mark"></span>
+                            Embed Codes
+                        </label>
+                        <label class="radio-label">
+                            <input type="radio" name="exportMethod" id="exportMethodUrls" value="urls">
+                            <span class="radio-mark"></span>
+                            Photo Page URLs
+                        </label>
+                    </div>
+
+                    <!-- Embed Codes Subsection -->
+                    <div id="embedCodesSection" class="export-subsection">
+                        <h4>Embed Codes</h4>
+
+                        <div class="setting-item">
+                            <label for="exportSize">Export Size Strategy:</label>
+                            <select id="exportSize">
+                                <option value="largest-available">📏 Use Largest Available Size (Smart)</option>
+                                <option value="consistent-max">📐 Consistent Max Size: No larger than 1024px</option>
+                                <option value="keep-original">♻️ Keep Original Size (as added)</option>
+                            </select>
+                            <div class="setting-help">
+                                <p>📏 <strong>Smart options</strong> adapt to what's available for each photo</p>
+                                <p>📐 <strong>Consistent max</strong> ensures all photos are similar sizes</p>
+                                <p>🔄 <strong>Available sizes</strong> update based on your photos</p>
+                            </div>
+                            <div id="exportSizeWarning" class="export-warning" style="display: none;">
+                                ⚠️ Some photos may not have the requested size
+                            </div>
+                        </div>
+
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="includeScriptTag" checked>
+                            <span class="checkmark"></span>
+                            Include single script tag at end (recommended)
+                        </label>
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="addLineBreaksEmbeds" checked>
+                            <span class="checkmark"></span>
+                            Add line breaks between embed codes
+                        </label>
+                    </div>
+
+                    <!-- Photo Page URLs Subsection -->
+                    <div id="photoUrlsSection" class="export-subsection" style="display: none;">
+                        <h4>Photo Page URLs</h4>
+
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="addLineBreaksUrls" checked>
+                            <span class="checkmark"></span>
+                            Add line breaks between URLs
+                        </label>
+                    </div>
+
+                    <!-- Export Buttons (outside subsections) -->
+                    <div class="export-buttons">
+                        <button id="generateEmbedBtn" class="btn btn-primary btn-large">
+                            <span class="btn-icon">🔄</span>
+                            Generate Embed Codes
+                        </button>
+                        <button id="copyEmbedBtn" class="btn btn-success btn-large" disabled>
+                            <span class="btn-icon">📋</span>
+                            Copy to Clipboard
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Embed Code Preview - Right Half -->
+                <div class="embed-preview-panel">
+                    <h3>Embed Code Preview</h3>
+                    <div class="embed-info">
+                        <span id="embedCountInfo">No codes generated</span>
+                    </div>
+                    <textarea id="embedCodePreview" class="embed-code-textarea" readonly placeholder="Click 'Generate Embed Codes' to see the HTML here..."></textarea>
+                </div>
+            </div>
+        </div>
+
+        <!-- Usage Instructions -->
+        <div class="section">
+            <div class="section-header">
+                <h2>How to Use</h2>
+            </div>
+            <div class="instructions">
+                <div class="instruction-step">
+                    <div class="step-number">1</div>
+                    <div class="step-content">
+                        <h4>Browse Flickr</h4>
+                        <p>Navigate to any Flickr photo page, album, or photostream</p>
+                    </div>
+                </div>
+                <div class="instruction-step">
+                    <div class="step-number">2</div>
+                    <div class="step-content">
+                        <h4>Add Photos</h4>
+                        <p>Right-click on photos and select "Flickr-WP-Embedder" → "Add to collection"</p>
+                    </div>
+                </div>
+                <div class="instruction-step">
+                    <div class="step-number">3</div>
+                    <div class="step-content">
+                        <h4>Manage & Export</h4>
+                        <p>Use this page to organize collections and export embed codes for web pages</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Settings Section -->
+        <div class="section">
+            <div class="section-header">
+                <h2>⚙️ Settings</h2>
+            </div>
+
+            <div class="settings-grid">
+                <div class="setting-item">
+                    <label for="flickrApiKey">Flickr API Key:</label>
+                    <div class="input-group">
+                        <input type="password" id="flickrApiKey" placeholder="Enter your Flickr API key">
+                        <button id="toggleApiKey" class="btn btn-secondary btn-small" title="Show/Hide API Key">👁️</button>
+                    </div>
+                </div>
+
+                    <div class="setting-help">
+                        <p>🔑 <strong>Get larger sizes (1600px, 2048px, Original):</strong></p>
+                        <p>1. Get a free API key at <a href="https://www.flickr.com/services/apps/create/apply" target="_blank">flickr.com/services/apps</a></p>
+                        <p>2. Choose "Non-Commercial" if you're using this personally</p>
+                        <p>3. Copy the Key from your app's page</p>
+                        <p>4. Paste it above and click "Test Connection"</p>
+                        <p>📝 Without API key, the extension uses oEmbed (limited to 1024px max).</p>
+                    </div>
+                </div>
+
+                <div class="setting-item">
+                    <label for="testPhotoInput">Test Photo (for Full Integration):</label>
+                    <input type="text" id="testPhotoInput" placeholder="Enter Flickr URL, photo ID, or username/photoId">
+                    <div class="setting-help">
+                        <p>Examples:</p>
+                        <p>• Full URL: https://www.flickr.com/photos/username/12345678</p>
+                        <p>• Photo ID only: 12345678</p>
+                        <p>• Username/ID: username/12345678</p>
+                    </div>
+                </div>
+
+                <div class="setting-item">
+                    <div class="api-test-controls">
+                        <button id="testApiBtn" class="btn btn-primary" disabled>Test API Connection</button>
+                        <button id="testFullIntegrationBtn" class="btn btn-secondary" disabled>🧪 Test Full Integration</button>
+                        <button id="saveApiBtn" class="btn btn-success" disabled>Save API Settings</button>
+                        <button id="clearApiBtn" class="btn btn-danger" disabled>Clear API Settings</button>
+                    </div>
+                </div>
+
+                <div class="setting-item">
+                    <label for="defaultMethod">Preferred Method:</label>
+                    <select id="defaultMethod">
+                        <option value="auto">Auto (API if available, oEmbed fallback)</option>
+                        <option value="oembed">Always use oEmbed (1024px max)</option>
+                        <option value="api">Always use API (requires key)</option>
+                    </select>
+                    <div class="setting-help">
+                        <p>Choose how the extension should generate embed codes.</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="api-status" id="apiStatus" style="display: none;">
+                <div class="status-indicator"></div>
+                <span class="status-text"></span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal for New/Rename Collection -->
+    <div id="collectionModal" class="modal">
+        <div class="modal-backdrop"></div>
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="modalTitle">New Collection</h3>
+                <button id="modalCloseBtn" class="modal-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <label for="collectionNameInput">Collection Name:</label>
+                <input type="text" id="collectionNameInput" class="modal-input" placeholder="Enter collection name">
+            </div>
+            <div class="modal-footer">
+                <button id="modalCancelBtn" class="btn btn-secondary">Cancel</button>
+                <button id="modalSaveBtn" class="btn btn-primary">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="options.js"></script>
+</body>
+</html>

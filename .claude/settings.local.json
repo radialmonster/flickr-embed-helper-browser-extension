@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mkdir:*)",
+      "Bash(node:*)",
+      "Read(//c/Users/Owner/Documents/projects/flicker-embed-helper/**)",
+      "WebFetch(domain:www.flickr.com)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

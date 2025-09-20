@@ -1,0 +1,27 @@
+{
+  "manifest_version": 3,
+  "name": "Flickr Embed Helper",
+  "description": "Quickly generate Flickr embed HTML snippets for web pages, and manage collections.",
+  "version": "0.2.4",
+  "permissions": [
+    "contextMenus",
+    "storage",
+    "activeTab",
+    "scripting"
+  ],
+  "host_permissions": [
+    "*://*.flickr.com/*",
+    "https://live.staticflickr.com/*",
+    "https://api.flickr.com/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["*://*.flickr.com/*"],
+      "js": ["content.js"]
+    }
+  ],
+  "options_page": "options.html"
+}
