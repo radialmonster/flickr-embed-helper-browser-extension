@@ -259,6 +259,46 @@ async function loadThumbnailAsync(photo, thumbnailContainer, photoTitle) {
 // Cache for photo size data to avoid repeated API calls
 const photoSizeCache = new Map();
 
+function normalizeSizeForRequest(size, fallbackLabel) {
+    if (!size && !fallbackLabel) {
+        return null;
+    }
+
+    const label = (size && size.label) || fallbackLabel || 'Large';
+    if (!size) {
+        return { label };
+    }
+
+    const parsedWidth = parseInt(size.width, 10);
+    const parsedHeight = parseInt(size.height, 10);
+    const width = Number.isFinite(parsedWidth) ? parsedWidth : null;
+    const height = Number.isFinite(parsedHeight) ? parsedHeight : null;
+    const maxDimension = Math.max(width || 0, height || 0) || null;
+
+    return {
+        label,
+        width,
+        height,
+        source: size.source || size.url || null,
+        maxDimension
+    };
+}
+
+function formatSizeResult(size, fallbackLabel, warningMessage) {
+    const normalized = normalizeSizeForRequest(size, fallbackLabel);
+    const sizeLabel = normalized?.label || fallbackLabel || 'Large';
+    const warning = warningMessage || null;
+    const requiresApi = normalized ? isApiSize(normalized.label) : false;
+
+    return {
+        sizeLabel,
+        sizeRequest: normalized,
+        requiresApi,
+        warning,
+        oEmbedMaxWidth: normalized?.maxDimension || null
+    };
+}
+
 async function getPhotoSizes(photo) {
     if (!photo || !photo.photoId) return null;
 
@@ -906,7 +946,7 @@ async function generateEmbedCodes() {
                 }
 
                 // Generate embed code using the determined size
-                const embedCode = await generateEmbedFromPhotoData(photo, sizeResult.sizeLabel);
+                const embedCode = await generateEmbedFromPhotoData(photo, sizeResult);
                 if (embedCode) {
                     embedCodes.push(embedCode);
                 } else {
@@ -943,7 +983,13 @@ async function determineBestSize(photo, strategy) {
 
     if (!sizes || !Array.isArray(sizes) || sizes.length === 0) {
         // No API data available, fall back to oEmbed
-        return { sizeLabel: 'Large', warning: 'Using oEmbed fallback (1024px max)' };
+        return {
+            sizeLabel: 'Large',
+            sizeRequest: null,
+            requiresApi: false,
+            warning: 'Using oEmbed fallback (1024px max)',
+            oEmbedMaxWidth: 1024
+        };
     }
 
     // Create a map of label to size for easier lookup
@@ -959,27 +1005,25 @@ async function determineBestSize(photo, strategy) {
             // Look for the "Original" size specifically first
             const originalSizeExact = sizes.find(size => size.label === 'Original');
             if (originalSizeExact) {
-                return {
-                    sizeLabel: originalSizeExact.label,
-                    warning: null
-                };
+                return formatSizeResult(originalSizeExact, 'Original', null);
             }
 
             // Fall back to largest available if no "Original" size
             const originalSizeFallback = sizes.reduce((prev, current) =>
                 (current.width * current.height > prev.width * prev.height) ? current : prev
             );
-            return {
-                sizeLabel: originalSizeFallback.label || 'Large',
-                warning: 'Original size not available, using largest available'
-            };
+            return formatSizeResult(
+                originalSizeFallback,
+                originalSizeFallback ? originalSizeFallback.label : 'Large',
+                'Original size not available, using largest available'
+            );
 
         case 'largest-available':
             // Find the largest size available
             const largest = sizes.reduce((prev, current) =>
                 (current.width * current.height > prev.width * prev.height) ? current : prev
             );
-            return { sizeLabel: largest.label || 'Large', warning: null };
+            return formatSizeResult(largest, largest ? largest.label : 'Large', null);
 
         case 'consistent-max':
         case 'consistent-1600':
@@ -997,31 +1041,33 @@ async function determineBestSize(photo, strategy) {
                 const suitable = suitableSizes.reduce((prev, current) =>
                     (current.width * current.height > prev.width * prev.height) ? current : prev
                 );
-                return { sizeLabel: suitable.label || 'Large', warning: null };
+                return formatSizeResult(suitable, suitable ? suitable.label : 'Large', null);
             } else {
                 // Use smallest available if none fit
                 const smallest = sizes.reduce((prev, current) =>
                     (current.width * current.height < prev.width * prev.height) ? current : prev
                 );
-                return {
-                    sizeLabel: smallest.label || 'Large',
-                    warning: `No size ≤${maxPixels}px, using ${smallest.label || 'Large'}`
-                };
+                return formatSizeResult(
+                    smallest,
+                    smallest ? smallest.label : 'Large',
+                    `No size ≤${maxPixels}px, using ${smallest?.label || 'Large'}`
+                );
             }
 
         default:
             // Fixed size strategy - check if available (strategy is now the direct label)
             if (sizeMap[strategy]) {
-                return { sizeLabel: strategy, warning: null };
+                return formatSizeResult(sizeMap[strategy], strategy, null);
             } else {
                 // Fall back to largest available
                 const fallback = sizes.reduce((prev, current) =>
                     (current.width * current.height > prev.width * prev.height) ? current : prev
                 );
-                return {
-                    sizeLabel: fallback.label || 'Large',
-                    warning: `${strategy} not available, using ${fallback.label || 'Large'}`
-                };
+                return formatSizeResult(
+                    fallback,
+                    fallback ? fallback.label : 'Large',
+                    `Size "${strategy}" not available, using ${fallback?.label || 'largest available'}`
+                );
             }
     }
 }
@@ -1121,14 +1167,30 @@ async function copyEmbedCodes() {
     }
 }
 
-async function generateEmbedFromPhotoData(photo, sizeLabel) {
+async function generateEmbedFromPhotoData(photo, sizeSelection) {
+    const message = {
+        action: 'generateEmbed',
+        photoData: photo
+    };
+
+    if (sizeSelection) {
+        if (sizeSelection.sizeLabel) {
+            message.sizeLabel = sizeSelection.sizeLabel;
+        }
+        if (sizeSelection.sizeRequest) {
+            message.sizeRequest = sizeSelection.sizeRequest;
+        }
+        if (typeof sizeSelection.requiresApi === 'boolean') {
+            message.requiresApi = sizeSelection.requiresApi;
+        }
+        if (sizeSelection.oEmbedMaxWidth) {
+            message.oEmbedMaxWidth = sizeSelection.oEmbedMaxWidth;
+        }
+    }
+
     // Use Chrome extension messaging to call the background script's embed generation
     return new Promise((resolve, reject) => {
-        chrome.runtime.sendMessage({
-            action: 'generateEmbed',
-            photoData: photo,
-            sizeLabel: sizeLabel || 'Large'
-        }, (response) => {
+        chrome.runtime.sendMessage(message, (response) => {
             if (chrome.runtime.lastError) {
                 reject(new Error(chrome.runtime.lastError.message));
                 return;

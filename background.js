@@ -224,8 +224,16 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.action === 'generateEmbed') {
     // Handle embed generation request from options page
     console.log('🎯 Generating embed from options page:', message);
-    
-    generateEmbedFromMessage(message.photoData, message.sizeKey)
+
+    const requestOptions = {
+      sizeKey: message.sizeKey,
+      sizeRequest: message.sizeRequest,
+      sizeLabel: message.sizeLabel,
+      requiresApi: message.requiresApi,
+      oEmbedMaxWidth: message.oEmbedMaxWidth
+    };
+
+    generateEmbedFromMessage(message.photoData, requestOptions)
       .then(embedHtml => {
         sendResponse({ success: true, embedHtml: embedHtml });
       })
@@ -239,20 +247,29 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 });
 
 // Generate embed without needing tab context (for options page)
-async function generateEmbedFromMessage(photoData, sizeKey) {
+async function generateEmbedFromMessage(photoData, requestOptions = {}) {
   console.log('🎯 Photo data for embed generation:', photoData);
-  
+
   if (!photoData || !photoData.photoId || !photoData.username) {
     throw new Error('Missing required photo data');
   }
 
   // Get user settings to determine preferred method
   const { flickrApiKey, defaultMethod = 'auto' } = await chrome.storage.local.get(['flickrApiKey', 'defaultMethod']);
-  
+
   const hasApiCredentials = flickrApiKey;
-  const requestedSize = SIZES.find(s => s.key === sizeKey);
-  const needsLargerSize = requestedSize && ['original', 'large6k', 'large5k', 'large4k', 'large3k', 'large2k', 'large1600'].includes(sizeKey);
-  
+  const { sizeKey, sizeRequest, sizeLabel, requiresApi, oEmbedMaxWidth } = requestOptions;
+
+  const requestedSize = sizeKey ? SIZES.find(s => s.key === sizeKey) : null;
+  const sizeRequestMax = sizeRequest ? Math.max(
+    Number(sizeRequest.maxDimension) || 0,
+    Number(sizeRequest.width) || 0,
+    Number(sizeRequest.height) || 0
+  ) : 0;
+  const needsLargerSizeFromKey = requestedSize && ['original', 'large6k', 'large5k', 'large4k', 'large3k', 'large2k', 'large1600'].includes(sizeKey);
+  const needsLargerSizeFromRequest = sizeRequestMax > 1024 || !!requiresApi;
+  const needsLargerSize = needsLargerSizeFromKey || needsLargerSizeFromRequest;
+
   // Determine which method to use
   let useApi = false;
   if (defaultMethod === 'api' && hasApiCredentials) {
@@ -262,8 +279,8 @@ async function generateEmbedFromMessage(photoData, sizeKey) {
   }
   
   if (useApi) {
-    console.log('🔑 Using Flickr API for larger size:', sizeKey);
-    const apiEmbedCode = await getFlickrApiEmbedCode(photoData, sizeKey, flickrApiKey);
+    console.log('🔑 Using Flickr API for size request:', { sizeKey, sizeLabel, sizeRequest });
+    const apiEmbedCode = await getFlickrApiEmbedCode(photoData, sizeKey, flickrApiKey, sizeRequest, sizeLabel);
     if (apiEmbedCode) {
       console.log('✅ Successfully retrieved embed from Flickr API');
       return apiEmbedCode;
@@ -273,7 +290,7 @@ async function generateEmbedFromMessage(photoData, sizeKey) {
 
   // Try to get official embed code from Flickr's oEmbed API
   console.log('🌐 Attempting to get official embed from Flickr oEmbed API...');
-  const officialEmbedCode = await getOfficialEmbedCode(photoData, sizeKey);
+  const officialEmbedCode = await getOfficialEmbedCode(photoData, sizeKey, sizeRequest, oEmbedMaxWidth || sizeRequestMax);
   
   if (officialEmbedCode) {
     console.log('✅ Successfully retrieved official embed from oEmbed API');
@@ -514,8 +531,8 @@ async function generateEmbed(info, tab, sizeKey) {
   }
   
   if (useApi) {
-    console.log('🔑 Using Flickr API for larger size:', sizeKey);
-    const apiEmbedCode = await getFlickrApiEmbedCode(photoData, sizeKey, flickrApiKey);
+    console.log('🔑 Using Flickr API for larger size:', { sizeKey, label: requestedSize?.label });
+    const apiEmbedCode = await getFlickrApiEmbedCode(photoData, sizeKey, flickrApiKey, null, requestedSize?.label);
     if (apiEmbedCode) {
       console.log('✅ Successfully retrieved embed from Flickr API');
       return apiEmbedCode;
@@ -525,7 +542,7 @@ async function generateEmbed(info, tab, sizeKey) {
 
   // Try to get official embed code from Flickr's oEmbed API
   console.log('🌐 Attempting to get official embed from Flickr oEmbed API...');
-  const officialEmbedCode = await getOfficialEmbedCode(photoData, sizeKey);
+  const officialEmbedCode = await getOfficialEmbedCode(photoData, sizeKey, null, null);
   
   if (officialEmbedCode) {
     console.log('✅ Successfully retrieved official embed from oEmbed API');
@@ -542,10 +559,10 @@ async function generateEmbed(info, tab, sizeKey) {
 // All dimension calculations removed - using suffix-only approach
 
 // Get embed code using Flickr API for larger sizes
-async function getFlickrApiEmbedCode(photoData, sizeKey, apiKey) {
+async function getFlickrApiEmbedCode(photoData, sizeKey, apiKey, sizeRequest, sizeLabel) {
   try {
     console.log('🔑 Using Flickr API to get photo sizes...');
-    
+
     // Call flickr.photos.getSizes to get all available sizes
     const apiUrl = `https://api.flickr.com/services/rest/?method=flickr.photos.getSizes&api_key=${apiKey}&photo_id=${photoData.photoId}&format=json&nojsoncallback=1`;
     
@@ -560,46 +577,67 @@ async function getFlickrApiEmbedCode(photoData, sizeKey, apiKey) {
     }
     
     console.log('📐 Available sizes from API:', data.sizes.size.map(s => `${s.label} (${s.width}×${s.height})`));
-    
-    // Map size keys to Flickr API labels
-    const sizeMapping = {
-      'original': 'Original',
-      'large6k': 'Extra Large 6144',
-      'large5k': 'Extra Large 5120', 
-      'large4k': 'Extra Large 4096',
-      'large3k': 'Extra Large 3072',
-      'large2k': 'Large 2048',
-      'large1600': 'Large 1600',
-      'large1024': 'Large',
-      'medium800': 'Medium 800',
-      'medium640': 'Medium 640',
-      'medium500': 'Medium',
-      'small400': 'Small 400',
-      'small320': 'Small 320',
-      'small240': 'Small',
-      'thumbnail': 'Thumbnail',
-      'square150': 'Large Square',
-      'square75': 'Square'
+
+    const availableSizes = data.sizes.size.map(size => ({
+      ...size,
+      numericWidth: Number(size.width) || 0
+    }));
+
+    const findByLabel = (label) => {
+      if (!label) {
+        return null;
+      }
+      return availableSizes.find(s => s.label === label) ||
+             availableSizes.find(s => s.label.toLowerCase() === label.toLowerCase());
     };
-    
-    const targetLabel = sizeMapping[sizeKey];
-    if (!targetLabel) {
-      throw new Error(`Unknown size key: ${sizeKey}`);
-    }
-    
-    // Find the requested size
-    let selectedSize = data.sizes.size.find(s => s.label === targetLabel);
-    
+
+    const fromSizeKey = () => {
+      if (!sizeKey) {
+        return null;
+      }
+
+      const sizeMapping = {
+        'original': 'Original',
+        'large6k': 'Extra Large 6144',
+        'large5k': 'Extra Large 5120',
+        'large4k': 'Extra Large 4096',
+        'large3k': 'Extra Large 3072',
+        'large2k': 'Large 2048',
+        'large1600': 'Large 1600',
+        'large1024': 'Large',
+        'medium800': 'Medium 800',
+        'medium640': 'Medium 640',
+        'medium500': 'Medium',
+        'small400': 'Small 400',
+        'small320': 'Small 320',
+        'small240': 'Small',
+        'thumbnail': 'Thumbnail',
+        'square150': 'Large Square',
+        'square75': 'Square'
+      };
+
+      const targetLabel = sizeMapping[sizeKey];
+      if (!targetLabel) {
+        console.warn(`⚠️ Unknown size key requested: ${sizeKey}`);
+        return null;
+      }
+
+      return findByLabel(targetLabel);
+    };
+
+    let selectedSize = findByLabel(sizeRequest?.label || sizeLabel) || fromSizeKey();
+
     // If exact size not found, find the closest smaller size
     if (!selectedSize) {
-      const availableSizes = data.sizes.size.sort((a, b) => b.width - a.width);
-      const requestedSize = SIZES.find(s => s.key === sizeKey);
-      const targetWidth = getSizeTargetWidth(sizeKey);
-      
-      selectedSize = availableSizes.find(s => s.width <= targetWidth) || availableSizes[availableSizes.length - 1];
-      console.log(`📐 Exact size '${targetLabel}' not found, using closest: ${selectedSize.label} (${selectedSize.width}×${selectedSize.height})`);
+      const sortedByWidth = [...availableSizes].sort((a, b) => b.numericWidth - a.numericWidth);
+      const targetWidth = sizeRequest?.width || sizeRequest?.maxDimension || getSizeTargetWidth(sizeKey);
+
+      selectedSize = sortedByWidth.find(s => s.numericWidth && targetWidth && s.numericWidth <= targetWidth) || sortedByWidth[0];
+      if (selectedSize) {
+        console.log(`📐 Exact size not found, using closest: ${selectedSize.label} (${selectedSize.width}×${selectedSize.height})`);
+      }
     }
-    
+
     if (!selectedSize) {
       throw new Error('No suitable size found');
     }
@@ -648,10 +686,10 @@ function getSizeTargetWidth(sizeKey) {
 }
 
 // Get official embed code from Flickr's oEmbed API
-async function getOfficialEmbedCode(photoData, sizeKey) {
+async function getOfficialEmbedCode(photoData, sizeKey, sizeRequest, explicitMaxWidth) {
   try {
     console.log('🌐 Using Flickr oEmbed API for official embed code...');
-    
+
     // Construct the photo URL - use the original context if available
     let photoUrl;
     if (photoData.albumId) {
@@ -680,9 +718,31 @@ async function getOfficialEmbedCode(photoData, sizeKey) {
       'square150': 150,
       'square75': 75
     };
-    
-    const maxWidth = sizeToMaxWidth[sizeKey] || 1024;
-    console.log('📐 Requesting size:', sizeKey, 'with maxwidth:', maxWidth);
+
+    let maxWidth = explicitMaxWidth || 0;
+    if (!maxWidth && sizeRequest) {
+      maxWidth = sizeRequest.maxDimension || Math.max(
+        Number(sizeRequest.width) || 0,
+        Number(sizeRequest.height) || 0
+      );
+    }
+    if (!maxWidth && sizeRequest?.label) {
+      const matches = sizeRequest.label.match(/\d{3,4}/g);
+      if (matches) {
+        maxWidth = Math.max(...matches.map(value => Number(value) || 0));
+      }
+    }
+    if (!maxWidth && sizeKey) {
+      maxWidth = sizeToMaxWidth[sizeKey] || 0;
+    }
+    if (!maxWidth) {
+      maxWidth = 1024;
+    }
+
+    // Avoid requesting impractically large embeds
+    maxWidth = Math.min(maxWidth, 6000);
+
+    console.log('📐 Requesting size parameters:', { sizeKey, sizeLabel: sizeRequest?.label, maxWidth });
     
     // Build oEmbed URL
     const oembedUrl = `https://www.flickr.com/services/oembed/?format=json&url=${encodeURIComponent(photoUrl)}&maxwidth=${maxWidth}`;
